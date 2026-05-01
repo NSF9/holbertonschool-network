@@ -1,4 +1,3 @@
 #!/usr/bin/env bash
 # This script displays Active Internet connections
-sudo apt-get install net-tools
 netstat -lp
