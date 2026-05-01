@@ -1,0 +1,179 @@
+# What happens when you type `https://www.google.com` in your browser?
+
+When you press **Enter**, a lot happens behind the scenes — in milliseconds. Here is the full journey of your request, step by step.
+
+---
+
+## 1. DNS Resolution
+
+Before your browser can send any request, it needs to translate the human-readable domain `www.google.com` into an IP address that machines understand.
+
+1. The browser checks its **local DNS cache** first.
+2. If not found, it asks the **OS resolver**, which checks `/etc/hosts` and its own cache.
+3. If still not found, the query goes to a **recursive DNS resolver** (e.g. your ISP's or 8.8.8.8).
+4. The resolver walks the DNS tree: **Root → .com TLD → google.com nameserver**.
+5. The authoritative nameserver returns an **A record**, e.g. `142.250.185.68`.
+
+Now the browser has a destination IP.
+
+---
+
+## 2. TCP Connection + TLS Handshake (Encrypted Traffic)
+
+The browser opens a connection to **port 443** (HTTPS) on that IP.
+
+### TCP 3-way handshake
+```
+Browser  →  SYN        →  Server
+Browser  ←  SYN-ACK    ←  Server
+Browser  →  ACK        →  Server
+```
+
+### TLS handshake (encryption)
+Because the URL starts with `https://`, all traffic is encrypted using **TLS (Transport Layer Security)**:
+
+1. Browser sends a **ClientHello** (supported TLS versions, cipher suites).
+2. Server responds with its **SSL certificate** and chosen cipher.
+3. Browser verifies the certificate against a trusted **Certificate Authority (CA)**.
+4. Both sides derive a **shared session key**.
+5. All subsequent data is **encrypted end-to-end**.
+
+> No one intercepting the traffic between you and Google can read its contents.
+
+---
+
+## 3. Firewall
+
+Before the request reaches any Google server, it passes through a **firewall**.
+
+The firewall inspects each incoming packet and:
+- Blocks traffic from **blacklisted IPs** or suspicious patterns.
+- Allows only traffic on **permitted ports** (80, 443).
+- Drops packets that don't match the expected protocol.
+- Protects against **DDoS attacks**, port scans, and intrusion attempts.
+
+Only clean, authorized traffic passes through.
+
+---
+
+## 4. Load Balancer
+
+Google receives billions of requests per day. A **single server cannot handle that**. The load balancer sits in front of a pool of servers and distributes incoming requests across them.
+
+Common algorithms:
+- **Round-robin** — each server gets a turn in order.
+- **Least connections** — send to the server with the fewest active connections.
+- **IP hash** — same client always goes to the same server (useful for session stickiness).
+
+The load balancer also performs **health checks** — if a server goes down, it stops sending traffic to it.
+
+---
+
+## 5. Web Server
+
+The request arrives at a **web server** (e.g. Nginx, Apache, or Google's internal equivalent).
+
+The web server's job:
+- Terminate the HTTPS connection (decrypt the request).
+- Serve **static assets** directly (HTML, CSS, JS, images) if available.
+- Forward **dynamic requests** to the application server (reverse proxy).
+
+For a Google search, the page content is dynamic — so the web server passes the request along.
+
+---
+
+## 6. Application Server
+
+The **application server** runs the actual business logic of Google Search:
+
+1. Parses the search query from the request URL.
+2. Applies ranking algorithms, personalisation, and filters.
+3. Decides what results to show.
+4. **Queries the database** (or distributed index) to fetch matching results.
+5. Assembles the final response (the search results page).
+
+At Google's scale, this involves distributed systems like **Bigtable**, **Spanner**, and the **Search Index** — but the concept is the same as any application server.
+
+---
+
+## 7. Database
+
+The application server queries a **database** (or distributed data store) to retrieve:
+- Indexed web pages matching the query.
+- Cached results for popular queries.
+- User data (if logged in) for personalisation.
+
+The database returns the data to the application server, which uses it to **generate the HTML response**.
+
+---
+
+## 8. The Response Travels Back
+
+The assembled HTML page travels back through the same chain:
+
+```
+Database → App Server → Web Server → Load Balancer → Firewall → Internet → Browser
+```
+
+The browser receives the HTML, then makes **additional requests** for CSS, JavaScript, images, and fonts referenced in the page. Each of those follows the same flow.
+
+Finally, the browser **renders the page** and you see the Google search results.
+
+---
+
+## Full Request Flow Diagram
+
+```
+[Browser]
+    |
+    | 1. DNS query: www.google.com → 142.250.x.x
+    ↓
+[DNS Resolver]
+    |
+    | 2. TCP :443 + TLS handshake (encrypted)
+    ↓
+[Firewall]
+    |
+    | 3. Filters malicious traffic
+    ↓
+[Load Balancer]
+    |
+    | 4. Distributes request to a healthy server
+    ↓
+[Web Server]  (Nginx / Apache)
+    |
+    | 5. Forwards dynamic request
+    ↓
+[Application Server]
+    |
+    | 6. Queries for data
+    ↓
+[Database]
+    |
+    | 7. Returns data → app builds HTML response
+    ↑
+[Application Server → Web Server → Load Balancer → Firewall]
+    |
+    | 8. Encrypted HTTPS response
+    ↓
+[Browser renders the page]
+```
+
+---
+
+## Summary Table
+
+| Step | Component | Role |
+|------|-----------|------|
+| 1 | DNS resolver | Translates domain to IP |
+| 2 | TLS / HTTPS | Encrypts all traffic |
+| 3 | Firewall | Blocks malicious packets |
+| 4 | Load balancer | Distributes requests across servers |
+| 5 | Web server | Serves static files, proxies dynamic requests |
+| 6 | Application server | Runs business logic, builds the page |
+| 7 | Database | Stores and returns persistent data |
+| 8 | Response | Travels back encrypted to the browser |
+
+---
+
+*Every time you press Enter, all of this happens in under 200 milliseconds.*
